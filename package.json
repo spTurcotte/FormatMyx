@@ -1,0 +1,47 @@
+{
+  "name": "formatmyx",
+  "displayName": "FormatMyx",
+  "description": "Automatically formats HTML files with configurable indentation",
+  "version": "1.0.6",
+  "publisher": "LeSimonak",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Le_Simonak/FormatMyx.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Le_Simonak/FormatMyx/issues"
+  },
+  "homepage": "https://github.com/Le_Simonak/FormatMyx#readme",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": ["Formatters"],
+  "activationEvents": [
+    "onLanguage:html",
+    "onLanguage:php",
+    "onLanguage:blade"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "htmlFormatter.runFormatter",
+        "title": "Format HTML"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "HTML Auto Formatter",
+      "properties": {
+        "htmlFormatter.indentationLevel": {
+          "type": "number",
+          "default": 1,
+          "enum": [0, 1, 2, 3, 4, 5],
+          "description": "Set the default indentation level (0 to 5). Applies to children of each HTML tag."
+        }
+      }
+    }
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
