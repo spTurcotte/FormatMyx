@@ -1,17 +1,17 @@
 {
   "name": "formatmyx",
   "displayName": "FormatMyx",
-  "description": "Automatically formats HTML files with configurable indentation",
-  "version": "1.0.6",
+  "description": "Ultra‑light formatter with AST, semantic analysis and more (v2.0.0‑beta)",
+  "version": "2.0.0‑beta.1",
   "publisher": "LeSimonak",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Le_Simonak/FormatMyx.git"
+    "url": "https://github.com/spTurcotte/FormatMyx.git"
   },
   "bugs": {
-    "url": "https://github.com/Le_Simonak/FormatMyx/issues"
+    "url": "https://github.com/spTurcotte/FormatMyx/issues"
   },
-  "homepage": "https://github.com/Le_Simonak/FormatMyx#readme",
+  "homepage": "https://github.com/spTurcotte/FormatMyx#readme",
   "engines": {
     "vscode": "^1.70.0"
   },
@@ -31,17 +31,49 @@
     ],
     "configuration": {
       "type": "object",
-      "title": "HTML Auto Formatter",
+      "title": "FormatMyx Settings (v2.0.0‑beta)",
       "properties": {
-        "htmlFormatter.indentationLevel": {
+        "formatmyx.indentationLevel": {
           "type": "number",
           "default": 1,
-          "enum": [0, 1, 2, 3, 4, 5],
-          "description": "Set the default indentation level (0 to 5). Applies to children of each HTML tag."
+          "enum": [0,1,2,3,4,5],
+          "description": "Default indent level for children of each HTML tag."
+        },
+        "formatmyx.enableAST": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable AST parsing for deeper code analysis."
+        },
+        "formatmyx.enableSemantic": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable semantic analysis (logic checks, incomplete blocks)."
+        },
+        "formatmyx.enableAutoFix": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable automatic fixes (missing braces, commas)."
+        },
+        "formatmyx.enableBackground": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable background analysis as you type."
+        },
+        "formatmyx.enableNoMagic": {
+          "type": "boolean",
+          "default": false,
+          "description": "Preview all changes before applying (No Magic mode)."
+        },
+        "formatmyx.fullScanShortcut": {
+          "type": "string",
+          "default": "ctrl+shift+f",
+          "description": "Shortcut for full scan (format + AST + semantic)."
         }
       }
     }
   },
-  "dependencies": {},
+  "dependencies": {
+    "parse5": "^6.0.1"
+  },
   "devDependencies": {}
 }
