@@ -1,122 +1,124 @@
 const vscode = require("vscode");
+const parse5 = require("parse5"); // AST parser
 
+// Recursively format AST nodes with proper indentation
+function formatAstNodes(nodes, indentLevel, indentStr, result) {
+  for (const node of nodes) {
+    if (node.nodeName === "#text") {
+      const text = node.value.trim();
+      if (text) {
+        result.push(indentStr.repeat(indentLevel) + text);
+      }
+    } else if (node.nodeName === "#comment") {
+      result.push(
+        indentStr.repeat(indentLevel) + `<!-- ${node.data.trim()} -->`
+      );
+    } else if (node.tagName) {
+      const tag = node.tagName;
+      // Serialize attributes
+      const attrs = node.attrs.map(a => `${a.name}="${a.value}"`).join(" ");
+      const openTag = attrs ? `<${tag} ${attrs}>` : `<${tag}>`;
+
+      // Void tags (self‑closing in HTML)
+      const voidTags = new Set([
+        "area","base","br","col","embed","hr","img",
+        "input","link","meta","param","source","track","wbr"
+      ]);
+
+      result.push(indentStr.repeat(indentLevel) + openTag);
+
+      // Recurse for children if not a void tag
+      if (!voidTags.has(tag)) {
+        formatAstNodes(node.childNodes || [], indentLevel + 1, indentStr, result);
+        result.push(indentStr.repeat(indentLevel) + `</${tag}>`);
+      }
+    }
+  }
+}
+
+// Very simple visual fallback for JS/TS/CSS
+function simpleVisualFormat(text) {
+  return text
+    .replace(/\{\s*/g, "{\n  ")
+    .replace(/;\s*/g, ";\n  ")
+    .replace(/\}\s*/g, "\n}\n");
+}
+
+// Main formatting function
 function simpleFormat(document) {
   const text = document.getText();
   const languageId = document.languageId;
 
-  let formatted = text;
+  const cfg = vscode.workspace.getConfiguration("formatmyx", document.uri);
+  const indentSize = vscode.workspace
+    .getConfiguration("editor", document.uri)
+    .get("tabSize", 2);
+  const insertSpaces = vscode.workspace
+    .getConfiguration("editor", document.uri)
+    .get("insertSpaces", true);
+  const indentStr = insertSpaces ? " ".repeat(indentSize) : "\t";
+  const userIndent = cfg.get("indentationLevel", 1);
+  const useAST = cfg.get("enableAST", false);
 
-  const editorConfig = vscode.workspace.getConfiguration("editor", document.uri);
-  const indentSize = editorConfig.get("tabSize") || 2;
-  const insertSpaces = editorConfig.get("insertSpaces") !== false;
-  const userIndentation = vscode.workspace.getConfiguration("htmlFormatter").get("indentationLevel", 1);
-
-  const INDENT = (lvl) => {
-    const level = Math.max(0, lvl);
-    return insertSpaces ? " ".repeat(indentSize * level) : "\t".repeat(level);
-  };
-
-  if (["html", "php", "blade"].includes(languageId)) {
-    const selfClosingTags = [
-      "area", "base", "br", "col", "embed", "hr", "img",
-      "input", "link", "meta", "param", "source", "track", "wbr"
-    ];
-    const voidTagRegex = new RegExp(`^<(${selfClosingTags.join("|")})(\\s|>|/)`, "i");
-
+  // HTML/PHP/Blade: AST formatting if enabled
+  if (["html","php","blade"].includes(languageId) && useAST) {
+    const ast = parse5.parse(text);
     const result = [];
-    let indent = 0;
-
-    const temp = text
-      .replace(/>\s*</g, ">\n<") // Séparation des balises côte à côte
-      .replace(/<!--.*?-->/gs, (m) => "\n" + m + "\n")
-      .replace(/<!DOCTYPE[^>]*>/gi, (m) => "\n" + m + "\n");
-
-    const allLines = temp.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
-
-    for (let i = 0; i < allLines.length; i++) {
-      let line = allLines[i];
-
-      // Éviter la rupture de balises simples ou PHP
-      if (
-        line.match(/^<\?php.+\?>$/) || // lignes PHP
-        line.match(/^<script.*<\/script>$/) || // scripts inline
-        line.match(/^<link[^>]*>$/) || // liens css
-        line.match(/^<meta[^>]*>$/) || // meta
-        line.match(/^<a\s+[^>]+>.*<\/a>$/) || // liens inline
-        line.match(/^<h[1-6]>.*<\/h[1-6]>$/) // titres sur une ligne
-      ) {
-        result.push(INDENT(indent) + line);
-        continue;
-      }
-
-      const isClosingTag = /^<\/.+>/.test(line);
-      const isSelfClosing = /\/>$/.test(line) || voidTagRegex.test(line);
-      const isOpeningTag = /^<[^/!][^>]*[^/]?>$/.test(line) && !line.includes("</");
-      const isComment = /^<!--/.test(line) || /^<!DOCTYPE/i.test(line);
-
-      if (isClosingTag && !isSelfClosing && !isComment) {
-        indent--;
-      }
-
-      result.push(INDENT(indent) + line);
-
-      if (isOpeningTag && !isSelfClosing && !isComment && !isClosingTag) {
-        indent += Math.max(1, userIndentation);
-      }
-    }
-
-    formatted = result.join("\n");
+    formatAstNodes(ast.childNodes, 0, indentStr, result);
+    return result.join("\n");
   }
 
-  return formatted;
+  // JS/TS/CSS: simple visual formatting
+  if (["javascript","typescript","css"].includes(languageId)) {
+    return simpleVisualFormat(text);
+  }
+
+  // Fallback: no change
+  return text;
 }
 
-function applyFormat(document) {
-  const formattedText = simpleFormat(document);
-
+// Apply edits to the document
+async function applyFormat(document) {
+  const formatted = simpleFormat(document);
   const fullRange = new vscode.Range(
     document.positionAt(0),
     document.positionAt(document.getText().length)
   );
-
   const edit = new vscode.WorkspaceEdit();
-  edit.replace(document.uri, fullRange, formattedText);
-  return vscode.workspace.applyEdit(edit);
+  edit.replace(document.uri, fullRange, formatted);
+  await vscode.workspace.applyEdit(edit);
 }
 
+// Activate extension
 function activate(context) {
-  const disposable = vscode.commands.registerCommand(
-    "htmlFormatter.runFormatter",
-    async function () {
+  console.log("FormatMyx v2 activated");
+
+  // Manual command
+  context.subscriptions.push(
+    vscode.commands.registerCommand("formatMyx.runFormatter", async () => {
       const editor = vscode.window.activeTextEditor;
-      if (!editor) return;
-      try {
+      if (editor) {
         await applyFormat(editor.document);
-      } catch (err) {
-        vscode.window.showErrorMessage("Erreur durant le formatage.");
-        console.error("Erreur:", err);
       }
-    }
+    })
   );
 
-  vscode.workspace.onWillSaveTextDocument((event) => {
-    const document = event.document;
-    if (!["html", "php", "blade"].includes(document.languageId)) return;
-    event.waitUntil(
-      (async () => {
-        try {
-          await applyFormat(document);
-        } catch (err) {
-          vscode.window.showErrorMessage("Erreur lors du formatage automatique.");
-          console.error("Erreur auto-format:", err);
-        }
-      })()
-    );
-  });
-
-  context.subscriptions.push(disposable);
+  // Format on save
+  context.subscriptions.push(
+    vscode.workspace.onWillSaveTextDocument(event => {
+      const doc = event.document;
+      if (
+        ["html","php","blade","javascript","typescript","css"].includes(
+          doc.languageId
+        )
+      ) {
+        event.waitUntil(applyFormat(doc));
+      }
+    })
+  );
 }
 
+// Deactivate extension
 function deactivate() {}
 
 module.exports = {
